@@ -1,0 +1,124 @@
+#!/usr/bin/env lua
+-- -*- lua -*-
+
+require "makepb.recipes"
+
+local recipe_class
+local classes = { autotools = AutotoolsClass }
+
+function prep_dsl_env ( srcpkg )
+    local env = {}
+    for i, fname in ipairs { "assert", "error", "ipairs", "next", "pairs",
+                             "pcall", "print", "select", "tonumber",
+                             "tostring", "type", "unpack", "xpcall" } do
+        env[ fname ] = _G[ fname ]
+    end
+
+    for k, v in pairs( classes ) do
+        env[ v ] = v
+    end
+
+    local class_dsl = {}
+    env[ "class" ] = function ( name )
+                         local classtbl = classes[ name ]
+                         if not classtbl then
+                             error( name .. " is not a valid recipe class" )
+                         end
+                         print( "srcpkg", srcpkg )
+                         recipe_class = classtbl:new( srcpkg )
+                         recipe_class:init()
+
+                         -- Load the recipe class's DSL for use in the recipe
+                         class_dsl = recipe_class:get_dsl()
+                     end
+
+    local field_accessors = { name = "pkgname"; version = "pkgver";
+                              desc = "pkgdesc"; release = "pkgrel"; }
+
+    for i, field in ipairs( srcpkg.pkgbuild.field_names ) do
+        if not field:find( "^pkg" ) then
+            field_accessors[ field ] = field
+        end
+    end
+
+    local meta = {}
+    meta.__index
+        = function ( tbl, name )
+              if class_dsl[ name ] then return class_dsl[ name ] end
+              local field_name = field_accessors[ name ]
+              if field_name then
+                  return srcpkg.pkgbuild:get_field( field_name )
+              end
+
+              error( name .. " is not defined.\n"
+                     .. "Did you remember to specify a PKGBUILD class?" )
+          end
+
+    meta.__newindex
+        = function ( tbl, name, arg )
+              local field_name = field_accessors[ name ]
+              if field_name then
+                  return srcpkg.pkgbuild:set_field( field_name, arg )
+              end
+
+              -- XXX: Should we report an error like in strict mode?
+              return
+          end
+
+    setmetatable( env, meta )
+
+    return env
+end
+
+function run_recipe ( recipe_path, srcpkg )
+    local recipe_env = prep_dsl_env( srcpkg )
+    local recipe, err = loadfile( recipe_path )
+    if not recipe then
+        error( "Failed to load " .. recipe_path .. ":\n" ..
+               err )
+    end
+    setfenv( recipe, recipe_env )
+    local success, err = pcall( recipe )
+    if not success then
+        error( err, 0 )
+    end
+    return
+end
+
+function make_srcpkgdir ( recipe_path )
+    local srcobj = SrcPkgDir:new()
+    run_recipe( recipe_path, srcobj )
+    if not recipe_class then
+        print( [[Error: No recipe object was created. Make sure you choose
+       a 'class' based on what type of PKGBUILD you want to make.
+       Maybe your recipe was empty?]] )
+    end
+
+    return srcobj
+end
+
+function strict_mode ( )
+    local meta = { __index    = function ( env, name )
+                                    error( "'" .. name .. "' is not defined",
+                                           2 )
+                                end;
+                   __newindex = function ( env, name )
+                                    error( "Attempted to define global '"
+                                           .. name .. "'", 2 )
+                                end }
+    setmetatable( _G, meta )
+end
+
+strict_mode()
+
+if #arg == 0 then
+    print( "Give paths to 'recipes' as command line arguments!" )
+    os.exit( 1 )
+end
+
+local i = 1
+while i <= #arg do
+    local srcobj = make_srcpkgdir( arg[i] )
+    srcobj.pkgbuild:write_to( io.stdout )
+    i = i + 1
+end
