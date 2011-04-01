@@ -1,0 +1,42 @@
+After looking at how cool mxcl/homebrew is and thinking of how much of
+an Archlinux PKGBUILD is background-noise, here is a proof-of-concept
+project. This is really just a fancy templating system for PKGBUILDs.
+In theory it could be able to generate an .install file too.
+
+Imagine instead of using bash for PKGBUILDs, you could use Lua. One
+great thing about Lua (where it most obviously outshines other
+languages) is how easy it is to sandbox Lua. You can even undefine
+"standard" functions. It's great!  Now you can be confident that
+PKGBUILDs are not malicious... because you've basically castrated
+them...
+
+Homebrew for Mac OS X is awesome because it uses ruby code for
+declaring often tedious things. I wanted something similar. By using
+higher level programming (compared to bash (which is not very
+difficult)) you can also generate sane defaults.
+
+So for example, instead of copy/pasting your "configure" command and
+then editing some more options onto it, instead you only have to
+specify the options that you want added to the defaults:
+
+    configure { bindir = "/usr/bin" }
+
+Here, configure is really a Lua function, and the curly brackets
+surround a table. Your table is added to an internal Cmd object that
+keeps track of what arguments are passed to it. That doesn't matter though,
+just keep this in mind:
+
+Interally, configure already has "--prefix=/usr" as an argument
+because this is so common why bother repeating it?  The line of DSL
+above just adds more named parameters, in the end the command data
+converts into the string:
+
+    configure --prefix=/usr --bindir="/usr/bin"
+
+For some reason I spent alot of time on this today. I thought it would
+be alot quicker. Right now it works for the most part. There is only a
+RecipeClass for GNU Autotools style packages. Look at the examples
+under the ex/ folder. Try running makepkgbuild with the filenames
+under ex as arguments to print out the PKGBUILDs.
+
+Nothing too fancy, really. Just a neat idea I stole from homebrew.
