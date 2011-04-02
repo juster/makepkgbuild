@@ -10,7 +10,8 @@ function prep_dsl_env ( srcpkg )
     local env = {}
     for i, fname in ipairs { "assert", "error", "ipairs", "next", "pairs",
                              "pcall", "print", "select", "tonumber",
-                             "tostring", "type", "unpack", "xpcall" } do
+                             "loadstring", "tostring", "type", "unpack",
+                             "xpcall", "string" } do
         env[ fname ] = _G[ fname ]
     end
 
@@ -19,18 +20,19 @@ function prep_dsl_env ( srcpkg )
     end
 
     local class_dsl = {}
-    env[ "class" ] = function ( name )
-                         local classtbl = classes[ name ]
-                         if not classtbl then
-                             error( name .. " is not a valid recipe class" )
-                         end
-                         print( "srcpkg", srcpkg )
-                         recipe_class = classtbl:new( srcpkg )
-                         recipe_class:init()
+    local function set_recipe_class ( name )
+        local classtbl = classes[ name ]
+        if not classtbl then
+            error( name .. " is not a valid recipe class" )
+        end
+        recipe_class = classtbl:new( srcpkg )
+        recipe_class:init()
 
-                         -- Load the recipe class's DSL for use in the recipe
-                         class_dsl = recipe_class:get_dsl()
-                     end
+        -- Load the recipe class's DSL for use in the recipe
+        class_dsl = recipe_class:get_dsl()
+    end
+
+    env.use = set_recipe_class
 
     local field_accessors = { name = "pkgname"; version = "pkgver";
                               desc = "pkgdesc"; release = "pkgrel"; }
@@ -54,15 +56,35 @@ function prep_dsl_env ( srcpkg )
                      .. "Did you remember to specify a PKGBUILD class?" )
           end
 
+    local function expand_string ( str )
+        local function expander ( block )
+            local name = block:sub( 2, #block-1 )
+            local success, ret = pcall( meta.__index, env, name )
+            if not success then error( ret, 5 ) end
+
+            if type( ret ) == "table" then
+                ret = ret[1]
+            end
+            return ret
+        end
+        expander = setfenv( expander, env )
+        str = string.gsub( str, "#(%b{})", expander )
+        return str
+    end
+
     meta.__newindex
         = function ( tbl, name, arg )
               local field_name = field_accessors[ name ]
               if field_name then
-                  return srcpkg.pkgbuild:set_field( field_name, arg )
+                  if type( arg ) == "string" then
+                      arg = expand_string( arg )
+                  end
+                  srcpkg.pkgbuild:set_field( field_name, arg )
+                  return
               end
 
               -- XXX: Should we report an error like in strict mode?
-              return
+              error( "Unknown package variable '" .. name .. "'" )
           end
 
     setmetatable( env, meta )
