@@ -9,6 +9,11 @@ Recipe base classes and recipes for making source packages.
 require "makepb.srcpkg"
 require "makepb.cmd"
 
+local function merge_left ( left, right )
+    for k, v in pairs( right ) do left[k] = v end
+    return left
+end
+
 RecipeClass = {}
 RecipeClass.__index = RecipeClass
 
@@ -65,7 +70,6 @@ function AutotoolsClass:init ()
 end
 
 function AutotoolsClass:get_dsl ()
-    local parentdsl = RecipeClass.get_dsl( self )
     local dsl = { configure = function ( args )
                                   self.configcmd:push_args( args )
                               end;
@@ -75,8 +79,8 @@ function AutotoolsClass:get_dsl ()
                   make_install = function ( args )
                                      self.makeinstallcmd:push_args( args )
                                  end }
-    for k, v in pairs( dsl ) do parentdsl[ k ] = v end
-    return parentdsl
+
+    return merge_left( RecipeClass.get_dsl( self ), dsl )
 end
 
 ------------------------------------------------------------------------------
