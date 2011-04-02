@@ -10,14 +10,11 @@ function prep_dsl_env ( srcpkg )
     local env = {}
     for i, fname in ipairs { "assert", "error", "ipairs", "next", "pairs",
                              "pcall", "print", "select", "tonumber",
-                             "loadstring", "tostring", "type", "unpack",
-                             "xpcall", "string" } do
+                             "tostring", "type", "unpack", "xpcall",
+                             "string", "table", "math" } do
         env[ fname ] = _G[ fname ]
     end
-
-    for k, v in pairs( classes ) do
-        env[ v ] = v
-    end
+    for k, v in pairs( classes ) do env[ v ] = v end
 
     local class_dsl = {}
     local function set_recipe_class ( name )
@@ -43,23 +40,17 @@ function prep_dsl_env ( srcpkg )
         end
     end
 
-    local meta = {}
-    meta.__index
-        = function ( tbl, name )
-              if class_dsl[ name ] then return class_dsl[ name ] end
-              local field_name = field_accessors[ name ]
-              if field_name then
-                  return srcpkg.pkgbuild:get_field( field_name )
-              end
-
-              error( name .. " is not defined.\n"
-                     .. "Did you remember to specify a PKGBUILD class?" )
-          end
+    local function get_pbfield ( name )
+        local field_name = field_accessors[ name ]
+        if field_name then
+            return srcpkg.pkgbuild:get_field( field_name )
+        end
+    end
 
     local function expand_string ( str )
         local function expander ( block )
             local name = block:sub( 2, #block-1 )
-            local success, ret = pcall( meta.__index, env, name )
+            local success, ret = pcall( get_pbfield, name )
             if not success then error( ret, 5 ) end
 
             if type( ret ) == "table" then
@@ -67,27 +58,35 @@ function prep_dsl_env ( srcpkg )
             end
             return ret
         end
-        expander = setfenv( expander, env )
         str = string.gsub( str, "#(%b{})", expander )
         return str
     end
 
-    meta.__newindex
-        = function ( tbl, name, arg )
-              local field_name = field_accessors[ name ]
-              if field_name then
-                  if type( arg ) == "string" then
-                      arg = expand_string( arg )
-                  end
-                  srcpkg.pkgbuild:set_field( field_name, arg )
-                  return
-              end
+    local function set_pbfield ( name, val )
+        local field_name = field_accessors[ name ]
+        if not field_name then return false end
 
-              -- XXX: Should we report an error like in strict mode?
+        if type( val ) == "string" then val = expand_string( val ) end
+        srcpkg.pkgbuild:set_field( field_name, val )
+        return true
+    end
+
+    env.__index
+        = function ( tbl, name )
+              if class_dsl[ name ] then return class_dsl[ name ] end
+              local field = get_pbfield( name )
+              if field then return field end
+              error( name .. " is not defined.\n"
+                     .. "Did you remember to specify a PKGBUILD class?" )
+          end
+
+    env.__newindex
+        = function ( tbl, name, arg )
+              if set_pbfield( name, arg ) then return end
               error( "Unknown package variable '" .. name .. "'" )
           end
 
-    setmetatable( env, meta )
+    setmetatable( env, env )
 
     return env
 end
