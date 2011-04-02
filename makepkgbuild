@@ -45,18 +45,20 @@ function prep_dsl_env ( srcpkg )
         if field_name then
             return srcpkg.pkgbuild:get_field( field_name )
         end
+
+        -- XXX: differentiate between unset and unknown fields?
     end
 
     local function expand_string ( str )
         local function expander ( block )
             local name = block:sub( 2, #block-1 )
-            local success, ret = pcall( get_pbfield, name )
-            if not success then error( ret, 5 ) end
-
-            if type( ret ) == "table" then
-                ret = ret[1]
+            local val  = get_pbfield( name )
+            if not val then
+                error( "Unknown or unset variable '" .. name .. "'", 6 )
             end
-            return ret
+
+            if type( val ) == "table" then val = val[1] end
+            return val
         end
         str = string.gsub( str, "#(%b{})", expander )
         return str
