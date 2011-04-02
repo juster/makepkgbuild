@@ -37,8 +37,8 @@ local function tobashval ( val, opts )
         else
             return val
         end
-    elseif valt == "integer" then
-        tostring( val )
+    elseif valt == "number" then
+        return tostring( val )
     else
         error( "Cannot convert a " .. valt .. " into a bash expression" )
     end
@@ -75,11 +75,11 @@ end
 
 function Pkgbuild:set_field ( name, val )
     if PB_STRFIELDS[ name ] then
-        if type( val ) ~= "string" then
-            error( name .. " is a string field and must be set with a string" )
+        if type( val ) ~= "string" and type( val ) ~= "number" then
+            error( name .. " must be set with a string or number" )
         end
     elseif PB_ARRFIELDS[ name ] then
-        if type( val ) == "string" then
+        if type( val ) == "string" or type( val ) == "number" then
             val = { val }
         elseif type( val ) ~= "table" then
             error( name .. " is an array field and must be set with an array" )
