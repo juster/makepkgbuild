@@ -145,15 +145,13 @@ function Pkgbuild:get_preface ()
     return pbtext
 end
 
-local function cdinto_distdir ( distdir )
-    return 'cd "${srcdir}/' .. distdir .. '"'
-end
-
 function Pkgbuild:get_func ( funcname )
     local lines = self.funcs[ funcname ]
     if not ( lines and next( self.funcs[ funcname ] )) then return nil end
-    local linescopy = { cdinto_distdir( self:get_distdir()) }
-    for i, line in pairs( self.funcs[ funcname ] ) do linescopy[ i ] = line end
+    local linescopy = { 'cd "${srcdir}/' .. self:get_distdir() .. '"' }
+    for i, line in pairs( self.funcs[ funcname ] ) do
+        linescopy[ i+1 ] = line
+    end
     return linescopy
 end
 
