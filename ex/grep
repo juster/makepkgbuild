@@ -13,4 +13,4 @@ makedepends = "texinfo"
 source      = "ftp://ftp.gnu.org/gnu/#{name}/#{name}-#{version}.tar.xz"
 
 configure { bindir = "/bin"; ["without-included-regex"] = true }
-append    ( "build", "make check" )
+append    { build  = "make check" }

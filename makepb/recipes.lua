@@ -23,12 +23,24 @@ end
 function RecipeClass:get_dsl ()
     local dsl = {}
     local pb  = self.src.pkgbuild
-    dsl.append = function ( func, ... )
-                     pb:append_func( func, ... )
+    dsl.append = function ( tbl )
+                     for funcname, cmd in pairs( tbl ) do
+                         if type( cmd ) == "table" then
+                             pb:append_func( funcname, unpack( cmd ))
+                         else
+                             pb:append_func( funcname, cmd )
+                         end
+                     end
                  end
-    dsl.prepend = function ( func, ... )
-                      pb:prepend_func( func, ... )
-                  end
+    dsl.prepend = function ( tbl )
+                     for funcname, cmd in pairs( tbl ) do
+                         if type( cmd ) == "table" then
+                             pb:prepend_func( funcname, unpack( cmd ))
+                         else
+                             pb:prepend_func( funcname, cmd )
+                         end
+                     end
+                 end
     return dsl
 end
 
