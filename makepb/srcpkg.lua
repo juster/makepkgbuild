@@ -49,18 +49,15 @@ Pkgbuild.__index = Pkgbuild
 
 Pkgbuild.field_names = { "pkgname", "pkgver", "pkgrel", "epoch",
                          "pkgdesc", "arch", "url", "license", "install",
+                         "options",
                          "changelog", "noextract", "groups",
                          "backup", "depends", "makedepends",
                          "checkdepends", "optdepends", "conflicts",
                          "provides", "replaces", "source" }
 
-function Pkgbuild:new ()
-    return setmetatable( { fields  = {};
-                           destdir = {};
-                           funcs   = { build   = {};
-                                       check   = {};
-                                       package = {} }}, self )
-end
+local OPTION_DEFAULTS = { strip = true; docs = true; libtool = true;
+                          emptydirs = true; zipman = true; ccache = true;
+                          distcc = true; buildflags = true; makeflags = true }
 
 local PB_STRFIELDS = { pkgver = true, pkgrel = true,
                        pkgdesc = true, epoch = true, url = true,
@@ -71,6 +68,17 @@ for i, name in ipairs({ "pkgname", "license", "source", "arch", "backup",
                         "depends", "makedepends", "checkdepends", "optdepends",
                         "groups", "conflicts", "provides", "replaces" }) do
     PB_ARRFIELDS[ name ] = true
+end
+
+function Pkgbuild:new ()
+    local opts = {}
+    for k, v in pairs( OPTION_DEFAULTS ) do opts[k] = v end
+    return setmetatable( { fields  = {};
+                           destdir = {};
+                           funcs   = { build   = {};
+                                       check   = {};
+                                       package = {} };
+                           options = opts }, self )
 end
 
 function Pkgbuild:set_field ( name, val )
@@ -99,6 +107,45 @@ function Pkgbuild:get_fields ( )
     local fieldscopy = {}
     for k, v in pairs( self.fields ) do fieldscopy[ k ] = v end
     return fieldscopy
+end
+
+function Pkgbuild:set_option ( name, enabled )
+    if self.options[name] == nil then
+        error( name .. " is not a valid PKGBUILD option name" )
+    end
+
+    if type( enabled ) ~= "boolean" then
+        error( "You can only set an option to a boolean value" )
+    end
+    self.options[name] = enabled
+    return enabled
+end
+
+function Pkgbuild:get_option ( name )
+    if self.options[name] == nil then
+        error( name .. " is not a valid PKGBUILD option name" )
+    end
+
+    return self.options[name]
+end
+
+function Pkgbuild:set_options ( listtbl )
+    for i, opt in ipairs( listtbl ) do
+        local enabled = true
+        if opt:find( "^!" ) then
+            opt = opt:sub( 2 )
+            enabled = false
+        end
+        self:set_option( opt, enabled )
+    end
+end
+
+function Pkgbuild:get_options_string ()
+    local opts = {}
+    for name, enabled in pairs( self.options ) do
+        if not enabled then table.insert( opts, "!" .. name ) end
+    end
+    return "(" .. table.concat( opts, " " ) .. ")"
 end
 
 -- The "distribution directory" is what I call the directory contained in
@@ -138,7 +185,10 @@ function Pkgbuild:get_preface ()
     end
 
     for i, fname in ipairs( Pkgbuild.field_names ) do
-        local txt = gettext( fname )
+        local txt
+        if fname == "options" then txt = self:get_options_string()
+        else txt = gettext( fname ) end
+
         if txt then pbtext = pbtext .. fname .. "=" .. txt .. "\n" end
     end
 

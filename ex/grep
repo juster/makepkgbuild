@@ -12,5 +12,5 @@ depends     = { "glibc", "pcre", "sh" }
 makedepends = "texinfo"
 source      = "ftp://ftp.gnu.org/gnu/#{name}/#{name}-#{version}.tar.xz"
 
-configure { bindir = "/bin"; ["without-included-regex"] = true }
-append    { build  = "make check" }
+configure:add { bindir = "/bin"; ["without-included-regex"] = true }
+append { build  = "make check" }

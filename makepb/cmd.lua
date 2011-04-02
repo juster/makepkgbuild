@@ -35,11 +35,11 @@ local function convert_args ( args )
     return results
 end
 
-function Cmd:set_args ( args )
+function Cmd:set ( args )
     self.args = convert_args( args )
 end
 
-function Cmd:push_args ( args )
+function Cmd:add ( args )
     for i, arg in ipairs( convert_args( args )) do
         table.insert( self.args, arg )
     end

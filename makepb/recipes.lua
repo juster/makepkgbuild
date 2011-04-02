@@ -46,6 +46,39 @@ function RecipeClass:get_dsl ()
                          end
                      end
                  end
+
+    local function append_pkg ( ... )
+        pb:append_func( "package", ... )
+    end
+
+    local function pkgpath ( relpath )
+        relpath = relpath:gsub( "^/", "" )
+        return '"${pkgdir}/' .. relpath .. '"'
+    end
+
+    dsl.mv = function ( src, dest )
+                 append_pkg( "mv " .. pkgpath( src ) .. " " .. pkgpath( dest ))
+             end
+
+    dsl.mkdir = function ( dir, mode )
+                    if not mode then mode = 755 end
+                    append_pkg( "ln -dm" .. mode .. " " .. pkgpath( dir ))
+                end
+
+    dsl.symlink = function ( target, dest )
+                      append_pkg( "ln -sf " .. pkgpath( target ) ..
+                                  " " .. pkgpath( dest ))
+                  end
+
+    dsl.rm = function ( path )
+                 append_pkg( "rm " .. pkgpath( path ))
+             end
+
+    dsl.chmod = function ( mode, path )
+                    append_pkg( "chmod " .. mode .. " "
+                                .. pkgpath( path ))
+                end
+
     return dsl
 end
 
@@ -57,10 +90,10 @@ AutotoolsClass.__index = AutotoolsClass
 function AutotoolsClass:init ()
     self.makecmd        = Cmd:new( "make" )
     self.makeinstallcmd = Cmd:new( "make" )
-    self.makeinstallcmd:push_args { "install", 'DESTDIR="$pkgdir"' }
+    self.makeinstallcmd:add { "install", 'DESTDIR="$pkgdir"' }
 
     self.configcmd = Cmd:new( "./configure" )
-    self.configcmd:push_args { prefix = "/usr" }
+    self.configcmd:add { prefix = "/usr" }
 
     -- We keep a reference to commands in case we want to modify these
     -- later. Their position is reserved even if they are modified.
@@ -70,15 +103,9 @@ function AutotoolsClass:init ()
 end
 
 function AutotoolsClass:get_dsl ()
-    local dsl = { configure = function ( args )
-                                  self.configcmd:push_args( args )
-                              end;
-                  make = function ( args )
-                             self.makecmd:push_args( args )
-                         end;
-                  make_install = function ( args )
-                                     self.makeinstallcmd:push_args( args )
-                                 end }
+    local dsl = { configure   = self.configcmd;
+                  make        = self.makecmd;
+                  makeinstall = self.makeinstallcmd; }
 
     return merge_left( RecipeClass.get_dsl( self ), dsl )
 end
@@ -136,6 +163,17 @@ function RecipeLoader:prepare_env ( srcpkg )
         end
     end
 
+    -- Option tables are special, you can access and set individual options
+    -- by using table notation.
+    local optionstbl = {}
+    optionstbl.__index = function ( tbl, optname )
+                            return srcpkg.pkgbuild:get_option( optname )
+                        end
+    optionstbl.__newindex = function ( tbl, optname, newval )
+                               srcpkg.pkgbuild:set_option( optname, newval )
+                           end
+    setmetatable( optionstbl, optionstbl )
+
     -- Helper functions corresponding to the recipe DSL.
     local function get_pbfield ( name )
         local field_name = field_accessors[ name ]
@@ -164,7 +202,10 @@ function RecipeLoader:prepare_env ( srcpkg )
         local field_name = field_accessors[ name ]
         if not field_name then return false end
 
-        if type( val ) == "string" then val = expand_string( val ) end
+        if type( val ) == "string" then val = expand_string( val )
+        elseif type( val ) == "table" then
+            for k, v in pairs( val ) do val[k] = expand_string( v ) end
+        end
         srcpkg.pkgbuild:set_field( field_name, val )
         return true
     end
@@ -177,6 +218,8 @@ function RecipeLoader:prepare_env ( srcpkg )
     -- Called when a function/variable was not found.
     env.__index
         = function ( tbl, name )
+              if name == "options" then return optionstbl end
+
               local func = self.class_imports[ name ]
               if func then return func end
 
@@ -190,6 +233,12 @@ function RecipeLoader:prepare_env ( srcpkg )
     -- Called when trying to create a new global variable/function.
     env.__newindex
         = function ( tbl, name, arg )
+              -- You can also set options all at once, using a notation
+              -- similiar to PKGBUILD's (with !'s)
+              if name == "options" then
+                  print( "*DNG*" )
+                  return srcpkg.pkgbuild:set_options( arg )
+              end
               if set_pbfield( name, arg ) then return end
               error( "Unknown package variable '" .. name .. "'" )
           end
