@@ -1,9 +1,10 @@
 -- -*- lua -*-
 
-class = "autotools"
+use "autotools"
+
 name  = "makepkg-test"
 version = "0.0.1"
-rel = "1"
+release = "1"
 desc = "This is only a test, do not be alarmed"
 url = "http://www.google.com"
 optdepends = { "foo: Foo on you!"; "bar: If you like wasting money" }
