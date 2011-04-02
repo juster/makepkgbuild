@@ -1,0 +1,18 @@
+use "autotools"
+
+name     = "acl"
+version  = "2.2.49"
+release  = 2
+desc     = "Access control list utilities, libraries and headers"
+arch     = { 'i686', 'x86_64' }
+url      = "http://savannah.nongnu.org/projects/acl"
+license  = { 'LGPL' }
+depends  = { "attr>=2.4.41" }
+source   = { "http://mirrors.zerg.biz/nongnu/acl/acl-#{version}.src.tar.gz" }
+
+options.libtool = false
+
+configure:add { libdir = "/lib"; libexecdir = "/usr/lib" }
+make:set { 'DIST_ROOT="${pkgdir}"'; "install"; "install-lib"; "install-dev" }
+rm( "/lib/libacl.a" )
+chmod( "0755", "/lib/libacl.so.*.*.*" )
