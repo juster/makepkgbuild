@@ -12,6 +12,7 @@ source   = { "http://mirrors.zerg.biz/nongnu/acl/acl-#{version}.src.tar.gz" }
 
 options.libtool = false
 
+configure:env { INSTALL_USER = "root"; INSTALL_GROUP = "root" }
 configure:add { libdir = "/lib"; libexecdir = "/usr/lib" }
 make:set { 'DIST_ROOT="${pkgdir}"'; "install"; "install-lib"; "install-dev" }
 rm( "/lib/libacl.a" )

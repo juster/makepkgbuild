@@ -7,11 +7,16 @@ The only purpose is to make modifying command arguments easier.
 
 --]]
 
+local bash      = require( "makepb.bash" )
+local tobashval = bash.tobashval
+
 Cmd = {}
 Cmd.__index = Cmd
 
 function Cmd:new ( name )
-    return setmetatable( { cmdname = name, args = {} }, self )
+    return setmetatable( { cmdname = name;
+                           args    = {};
+                           cmdenv  = {}; }, self )
 end
 
 -- Convert a table of arguments into a proper array table...
@@ -45,6 +50,23 @@ function Cmd:add ( args )
     end
 end
 
-function Cmd.__tostring ( cmd )
-    return cmd.cmdname .. " " .. table.concat( cmd.args, " " )
+function Cmd:env ( newenv )
+    if newenv == nil then return self.cmdenv end
+
+    local envcopy = {}
+    for k, v in pairs( newenv ) do envcopy[k] = v end
+    self.cmdenv = envcopy
+end
+
+function Cmd:__tostring ( )
+    local envsets = {}
+    for k, v in pairs( self.cmdenv ) do
+        table.insert( envsets, k .. "=" .. tobashval( v ))
+    end
+
+    local cmdtxt = ""
+    if #envsets > 0 then
+        cmdtxt = table.concat( envsets, " " ) .. " "
+    end
+    return cmdtxt .. self.cmdname .. " " .. table.concat( self.args, " " )
 end
